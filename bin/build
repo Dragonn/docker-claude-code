@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+context="$(dirname "$(realpath "$0")")/../"
+version="2.0.25"
+
+docker build "$context" \
+  --build-arg VERSION="${version}" \
+  -t "claude-code:${version}"
+docker tag "claude-code:${version}" "claude-code:latest"
+
+echo "Successfully built claude-code:${version} and tagged as claude-code:latest"

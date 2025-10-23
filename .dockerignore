@@ -1,0 +1,15 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+CLAUDE.md
+*.md
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Scripts (not needed in image)
+bin/

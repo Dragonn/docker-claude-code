@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Get the absolute path of the current directory
+host_path="$(realpath "$(pwd)")"
+
+# Prevent mounting dangerous system directories
+case "$host_path" in
+  /|/bin|/sbin|/usr|/usr/*|/etc|/etc/*|/lib|/lib/*|/lib64|/lib64/*|/sys|/sys/*|/proc|/proc/*|/dev|/dev/*|/boot|/boot/*|/root|/root/*)
+    echo "Error: Cannot run Claude Code from system directory: $host_path" >&2
+    echo "Please run from a user directory like /home, /mnt, /opt, or /tmp" >&2
+    exit 1
+    ;;
+esac
+
+exec docker run \
+  --rm \
+  -it \
+  --user "$(id -u):$(id -g)" \
+  -v "${HOME}/.claude:${HOME}/.claude" \
+  -v "${HOME}/.claude.json:${HOME}/.claude.json" \
+  -v "${HOME}/.claude.json.backup:${HOME}/.claude.json.backup" \
+  -v "${host_path}:${host_path}" \
+  -w "${host_path}" \
+  -e HOME="${HOME}" \
+  claude-code:latest "$@"
