@@ -2,7 +2,11 @@
 set -euo pipefail
 
 context="$(dirname "$(realpath "$0")")/../"
-version="2.0.25"
+
+# Fetch the latest version from npm registry API
+echo "Fetching latest version of @anthropic-ai/claude-code from npm registry..."
+version=$(curl -s https://registry.npmjs.org/@anthropic-ai/claude-code/latest | grep -o '"version":"[^"]*"' | cut -d'"' -f4)
+echo "Latest version: ${version}"
 
 docker build "$context" \
   --build-arg VERSION="${version}" \

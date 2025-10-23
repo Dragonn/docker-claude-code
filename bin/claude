@@ -5,9 +5,9 @@ set -euo pipefail
 host_path="$(realpath "$(pwd)")"
 
 # Prevent mounting dangerous system directories
-case "$host_path" in
+case "${host_path}" in
   /|/bin|/sbin|/usr|/usr/*|/etc|/etc/*|/lib|/lib/*|/lib64|/lib64/*|/sys|/sys/*|/proc|/proc/*|/dev|/dev/*|/boot|/boot/*|/root|/root/*)
-    echo "Error: Cannot run Claude Code from system directory: $host_path" >&2
+    echo "Error: Cannot run Claude Code from system directory: ${host_path}" >&2
     echo "Please run from a user directory like /home, /mnt, /opt, or /tmp" >&2
     exit 1
     ;;

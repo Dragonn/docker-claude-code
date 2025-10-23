@@ -15,7 +15,7 @@ A Docker containerization wrapper for [Claude Code](https://claude.ai/code), all
 ./bin/build
 ```
 
-This builds a Docker image with Claude Code version 2.0.25 and tags it as both `claude-code:2.0.25` and `claude-code:latest`.
+This automatically fetches the latest version of Claude Code from npm and builds a Docker image tagged as both `claude-code:<version>` and `claude-code:latest`.
 
 ### 2. Run Claude Code
 
@@ -31,7 +31,7 @@ The `bin/claude` script automatically mounts:
 - `~/.claude` - Claude Code configuration directory
 - `~/.claude.json` - Claude Code settings file
 - `~/.claude.json.backup` - Settings backup file
-- Current directory (`$PWD`) - Mounted to `/mnt/claude` as the workspace
+- Current directory - Mounted at the same absolute path inside the container (preserves host path structure)
 
 ## Passing Arguments
 
@@ -42,17 +42,21 @@ You can pass any Claude Code arguments directly:
 ./bin/claude --version
 ```
 
-## Updating the Version
+## Updating to the Latest Version
 
-To update to a different Claude Code version:
+The build script automatically fetches the latest version from npm, so simply rebuild:
 
-1. Edit `bin/build` and change the `version` variable
-2. Rebuild the image: `./bin/build`
+```bash
+./bin/build
+```
+
+This will pull the latest version of Claude Code and rebuild the image.
 
 ## Technical Details
 
 - Base image: `node:22-trixie-slim`
-- Claude Code is installed globally via npm
+- Claude Code version is fetched dynamically from the npm registry at build time
 - Auto-updater is disabled (`DISABLE_AUTOUPDATER=1`) for version consistency
-- Container runs as the `node` user (non-root)
+- Container runs as the `claude` user (renamed from `node`, non-root)
 - Container is automatically removed after exit (`--rm`)
+- Path preservation: The container maintains the same absolute paths as the host
