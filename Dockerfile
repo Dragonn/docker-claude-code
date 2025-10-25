@@ -7,6 +7,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
     npm install -g @anthropic-ai/claude-code@${VERSION} && \
     claude --version && \
+    npm cache clean --force && \
+    rm -rf /tmp/* && \
     usermod -l claude -d /home/claude -m node && \
     groupmod -n claude node
 
