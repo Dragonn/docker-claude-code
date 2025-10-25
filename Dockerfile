@@ -2,7 +2,7 @@ FROM node:22-trixie-slim
 
 ARG VERSION
 RUN apt-get update && \
-    apt-get install --no-install-recommends --assume-yes git && \
+    apt-get install --no-install-recommends --assume-yes git vim && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* && \
     npm install -g @anthropic-ai/claude-code@${VERSION} && \
