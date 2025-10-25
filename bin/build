@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+docker_repository="claude-code"
 context="$(dirname "$(realpath "$0")")/../"
 
 # Fetch the latest version from npm registry API
@@ -10,7 +11,7 @@ echo "Latest version: ${version}"
 
 docker build "$context" \
   --build-arg VERSION="${version}" \
-  -t "claude-code:${version}"
-docker tag "claude-code:${version}" "claude-code:latest"
+  -t "${docker_repository}:${version}"
+docker tag "${docker_repository}:${version}" "${docker_repository}:latest"
 
-echo "Successfully built claude-code:${version} and tagged as claude-code:latest"
+echo "Successfully built ${docker_repository}:${version} and tagged as ${docker_repository}:latest"
