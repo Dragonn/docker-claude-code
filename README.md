@@ -1,85 +1,81 @@
-# Claude Code Docker Wrapper
+# Claude Code in Docker
 
-Run [Claude Code](https://www.claude.com/product/claude-code) in a Docker container.
-
-Avoid installing Node and running `npm install -g` to use Claude Code. Instead, simply run the Docker container and mount your config files and current working directory.
-
-## Prerequisites
-
-- Docker installed and running
-- Docker permissions configured (able to run `docker` commands)
-
-## Quick Start
-
-### 1. Build the Docker image
+Run [Claude Code](https://www.claude.com/product/claude-code) in Docker without installing Node.js or npm.
 
 ```bash
+claude --help
+```
+
+That's it. No `npm install -g`, no Node.js version conflicts.
+
+## Installation
+
+Run this one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/peterkuczera/docker-claude-code/main/install.sh | bash
+```
+
+Then run Claude Code from any project directory:
+
+```bash
+cd ~/my-project
+claude
+```
+
+[View install.sh source](https://raw.githubusercontent.com/peterkuczera/docker-claude-code/main/install.sh)
+
+## How It Works
+
+The `claude` script runs a Docker container that mounts:
+- **Your config** (`~/.claude`, `~/.claude.json`) - API keys and settings persist
+- **Current directory** - At the same absolute path inside the container
+- **Your user ID** - Files created have correct ownership
+
+The container automatically pulls the latest image, so you always get the newest Claude Code version.
+
+## Examples
+
+```bash
+claude                    # Interactive mode
+claude --help             # Show help
+claude --version          # Show version
+claude "fix the bug"      # Run a prompt directly
+```
+
+## Troubleshooting
+
+**Running from system directories blocked**
+
+The script blocks mounting `/`, `/etc`, `/usr`, etc. Run from a user directory instead.
+
+## Updates
+
+Images are published to [Docker Hub](https://hub.docker.com/r/peterkuczera/claude-code) automatically when new Claude Code versions are released. The `--pull always` flag in the function ensures you get the latest version.
+
+To update manually:
+```bash
+docker pull peterkuczera/claude-code:latest
+```
+
+## Building Locally
+
+Build the image yourself:
+
+```bash
+git clone https://github.com/peterkuczera/docker-claude-code.git
+cd docker-claude-code
 ./bin/build
 ```
 
-This automatically fetches the latest version of Claude Code from npm and builds a Docker image tagged as both `claude-code:<version>` and `claude-code:latest`.
-
-### 2. Run Claude Code
+Then install the wrapper to use your local build:
 
 ```bash
-./bin/claude
+DOCKER_IMAGE=claude-code:latest ./install.sh
 ```
 
-This starts Claude Code in a Docker container with your current directory mounted as the workspace.
+See [CLAUDE.md](CLAUDE.md) for development details and architecture.
 
-## What Gets Mounted
+## License
 
-The `bin/claude` script automatically mounts:
-- `~/.claude` - Claude Code configuration directory
-- `~/.claude.json` - Claude Code settings file
-- `~/.claude.json.backup` - Settings backup file
-- Current directory - Mounted at the same absolute path inside the container (preserves host path structure)
-
-## Passing Arguments
-
-You can pass any Claude Code arguments directly:
-
-```bash
-./bin/claude --help
-./bin/claude --version
-```
-
-## Updating to the Latest Version
-
-The build script automatically fetches the latest version from npm, so simply rebuild:
-
-```bash
-./bin/build
-```
-
-This will pull the latest version of Claude Code and rebuild the image.
-
-## Automated Builds
-
-Docker images are automatically published to [Docker Hub](https://hub.docker.com/r/peterkuczera/claude-code) daily via GitHub Actions. The workflow:
-- Checks for new Claude Code versions on npm every day at midnight UTC
-- Only builds and publishes if a new version is detected
-- Tags images with both the version number and `latest`
-- Builds multi-platform images (linux/amd64, linux/arm64)
-
-### GitHub Secrets Required
-
-To enable automated publishing, configure these secrets in your GitHub repository settings:
-
-- `DOCKER_HUB_USERNAME` - Your Docker Hub username
-- `DOCKER_HUB_TOKEN` - A Docker Hub access token (create at https://hub.docker.com/settings/security)
-
-### Manual Builds
-
-You can trigger builds manually via the "Actions" tab in GitHub:
-- **Normal run**: Checks for new npm version and only builds if a new version is found
-- **Force rebuild**: Check the "Force rebuild" option to rebuild and republish even if the version already exists (useful when you've made changes to the Dockerfile or build configuration)
-
-## Technical Details
-
-- Base image: `node:22-trixie-slim`
-- Claude Code version is fetched dynamically from the npm registry at build time
-- Auto-updater is disabled (`DISABLE_AUTOUPDATER=1`) for version consistency
-- Container runs as the `claude` user (renamed from `node`, non-root)
-- Container is automatically removed after exit (`--rm`)
-- Path preservation: The container maintains the same absolute paths as the host
+docker-claude-code is released under the [MIT License](https://opensource.org/license/mit).

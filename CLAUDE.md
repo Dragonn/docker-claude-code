@@ -4,43 +4,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a Docker containerization wrapper for Claude Code. It builds a Docker image that runs the `@anthropic-ai/claude-code` npm package in an isolated container environment.
+This is a Docker containerization wrapper for Claude Code. It builds a Docker image that runs the `@anthropic-ai/claude-code` npm package in an isolated container environment and provides an installer for end users.
 
 ## Architecture
 
 The repository consists of three main components:
 
 1. **Dockerfile**: Builds a container based on `node:22-trixie-slim`, installs Claude Code globally via npm, renames the default `node` user to `claude`, and sets the entrypoint to run the `claude` command
-2. **bin/build**: Shell script that builds the Docker image and tags it with the version number (defined in `version` variable) and as `latest`
-3. **bin/claude**: Shell script that runs the Claude Code container with appropriate volume mounts for configuration and the current working directory. Includes safety checks to prevent mounting dangerous system directories.
+2. **bin/build**: Shell script that builds the Docker image and tags it with the version number (fetched dynamically from npm) and as `latest`
+3. **install.sh**: Installer that creates a wrapper script at `~/.local/bin/claude` and adds `~/.local/bin` to PATH if needed. The wrapper script runs the Docker container with appropriate volume mounts and safety checks.
 
 ## Common Commands
 
-### Build the Docker image
+### Build the Docker image locally
 ```bash
 ./bin/build
 ```
 
 This builds the Docker image and tags it as both `claude-code:${version}` and `claude-code:latest`.
 
-### Run Claude Code in Docker
+### Install the wrapper script for local testing
 ```bash
-./bin/claude [arguments]
+DOCKER_IMAGE=claude-code:latest bash install.sh
 ```
 
-This runs Claude Code in a container with:
-- Configuration files mounted from `~/.claude`, `~/.claude.json`, and `~/.claude.json.backup`
-- Current directory mounted at the same absolute path inside the container (preserves host path structure)
-- Runs as the current user (via `--user "$(id -u):$(id -g)"`)
-- Interactive TTY mode enabled
-- Container auto-removed after exit
+This installs the wrapper script configured to use your locally built image instead of the published one.
+
+### Run without installing (for quick testing)
+```bash
+docker run --rm -it \
+  --user "$(id -u):$(id -g)" \
+  -v "${HOME}/.claude:${HOME}/.claude" \
+  -v "${HOME}/.claude.json:${HOME}/.claude.json" \
+  -v "$(pwd):$(pwd)" \
+  -w "$(pwd)" \
+  -e HOME="${HOME}" \
+  claude-code:latest
+```
 
 ## Key Details
 
 - **Version Management**: The Claude Code version is fetched dynamically from the npm registry API at build time. The `bin/build` script queries `https://registry.npmjs.org/@anthropic-ai/claude-code/latest` to get the latest version, which is then passed as a build arg to the Dockerfile and used for image tagging.
-- **Auto-updater**: Disabled via `DISABLE_AUTOUPDATER=1` environment variable (Dockerfile:10) to ensure consistent versioning in the containerized environment.
+- **Auto-updater**: Disabled via `DISABLE_AUTOUPDATER=1` environment variable to ensure consistent versioning in the containerized environment.
 - **Path Preservation**: Unlike typical Docker setups, the container preserves the host's absolute path structure. If you run from `/home/user/project`, the container working directory is also `/home/user/project`.
-- **Safety Checks**: The `bin/claude` script (lines 8-14) prevents running from dangerous system directories like `/`, `/etc`, `/usr`, etc., to avoid accidentally mounting critical system paths.
+- **Safety Checks**: The installed wrapper script prevents running from dangerous system directories like `/`, `/etc`, `/usr`, etc., to avoid accidentally mounting critical system paths.
+- **Installation Approach**: The `install.sh` script installs a standalone wrapper script to `~/.local/bin/claude` rather than modifying shell configs with functions. It only appends to shell config if `~/.local/bin` is not already in PATH.
+- **Docker Image Override**: Set the `DOCKER_IMAGE` environment variable when running `install.sh` to use a different image (useful for local development: `DOCKER_IMAGE=claude-code:latest bash install.sh`).
 
 ## Bash Script Conventions
 
