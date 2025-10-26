@@ -1,6 +1,6 @@
 # Claude Code in Docker
 
-Run [Claude Code](https://www.claude.com/product/claude-code) in Docker without installing Node.js or npm.
+Run [Claude Code](https://www.claude.com/product/claude-code) in a Docker container. No Node.js installation required. Uses [`peterkuczera/claude-code`](https://hub.docker.com/r/peterkuczera/claude-code) on Docker Hub, automatically updated with new Claude Code releases.
 
 ```bash
 claude --help
@@ -27,12 +27,12 @@ claude
 
 ## How It Works
 
-The `claude` script runs a Docker container that mounts:
-- **Your config** (`~/.claude`, `~/.claude.json`) - API keys and settings persist
-- **Current directory** - At the same absolute path inside the container
-- **Your user ID** - Files created have correct ownership
+The `claude` script runs a Docker container with:
+- Your config files (`~/.claude`, `~/.claude.json`) mounted so API keys and settings persist
+- Your current directory mounted so Claude Code can access your project files
+- Your user ID so files created have correct ownership
 
-The container automatically pulls the latest image, so you always get the newest Claude Code version.
+The latest image is automatically pulled, so you always get the newest Claude Code version.
 
 ## Examples
 
@@ -49,18 +49,9 @@ claude "fix the bug"      # Run a prompt directly
 
 The script blocks mounting `/`, `/etc`, `/usr`, etc. Run from a user directory instead.
 
-## Updates
-
-Images are published to [Docker Hub](https://hub.docker.com/r/peterkuczera/claude-code) automatically when new Claude Code versions are released. The `--pull=always` flag in the script ensures you get the latest version.
-
-To update manually:
-```bash
-docker pull peterkuczera/claude-code:latest
-```
-
 ## Building Locally
 
-Build the image yourself:
+For contributors or those wanting to customize the image:
 
 ```bash
 git clone https://github.com/peterkuczera/docker-claude-code.git
