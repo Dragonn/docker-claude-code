@@ -13,7 +13,7 @@ That's it. No `npm install -g`, no Node.js version conflicts.
 Run this one-liner:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/peterkuczera/docker-claude-code/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/peterkuczera/docker-claude-code/refs/heads/main/install.sh | bash
 ```
 
 Then run Claude Code from any project directory:
@@ -23,7 +23,7 @@ cd ~/my-project
 claude
 ```
 
-[View install.sh source](https://raw.githubusercontent.com/peterkuczera/docker-claude-code/main/install.sh)
+[View install script](https://raw.githubusercontent.com/peterkuczera/docker-claude-code/refs/heads/main/install.sh)
 
 ## How It Works
 
@@ -51,7 +51,7 @@ The script blocks mounting `/`, `/etc`, `/usr`, etc. Run from a user directory i
 
 ## Updates
 
-Images are published to [Docker Hub](https://hub.docker.com/r/peterkuczera/claude-code) automatically when new Claude Code versions are released. The `--pull always` flag in the function ensures you get the latest version.
+Images are published to [Docker Hub](https://hub.docker.com/r/peterkuczera/claude-code) automatically when new Claude Code versions are released. The `--pull=always` flag in the script ensures you get the latest version.
 
 To update manually:
 ```bash
