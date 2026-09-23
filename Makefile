@@ -6,6 +6,9 @@
 #   make USER_ID=1001 build    # bake a specific uid (defaults to your own)
 #   sudo make install          # copy host scripts to /usr/local/bin
 #   make user-install          # copy host scripts to ~/.local/bin (+ PATH)
+#
+# install / user-install also create ~/.config/claude-docker.conf from
+# config.example if it does not exist; uninstall / user-uninstall remove it.
 
 IMAGE   ?= my-claude-code
 VERSION ?= latest
@@ -18,12 +21,20 @@ PREFIX      ?= /usr/local
 BINDIR      ?= $(PREFIX)/bin
 USER_BINDIR ?= $(HOME)/.local/bin
 
+# Per-user config file. Resolve the invoking user's home even under sudo, and
+# honour CLAUDE_DOCKER_CONFIG / XDG_CONFIG_HOME the same way the `claude` script
+# does. The template is config.example; existing configs are never overwritten.
+CFG_HOME := $(if $(SUDO_USER),$(shell getent passwd $(SUDO_USER) | cut -d: -f6),$(HOME))
+CFG_DIR  := $(if $(XDG_CONFIG_HOME),$(XDG_CONFIG_HOME),$(CFG_HOME)/.config)
+CONFIG   := $(if $(CLAUDE_DOCKER_CONFIG),$(CLAUDE_DOCKER_CONFIG),$(CFG_DIR)/claude-docker.conf)
+
 # Tag with the resolved version and always with :latest (the run script uses
 # the untagged name, which resolves to :latest).
 TAGS := -t $(IMAGE):$(VERSION) -t $(IMAGE):latest
 
 .DEFAULT_GOAL := build
-.PHONY: build rebuild clean install uninstall user-install user-uninstall
+.PHONY: build rebuild clean install uninstall user-install user-uninstall \
+        install-config uninstall-config
 
 build:
 	docker build \
@@ -42,20 +53,40 @@ rebuild:
 clean:
 	-docker image rm $(IMAGE):$(VERSION) $(IMAGE):latest
 
+# Create the user config from the template if it does not already exist.
+# Never overwrites an existing config. Under sudo, writes to (and chowns to)
+# the invoking user's home.
+install-config:
+	@install -d "$(dir $(CONFIG))"
+	@if [ -e "$(CONFIG)" ]; then \
+		echo "Config already exists, keeping it: $(CONFIG)"; \
+	else \
+		install -m 0644 config.example "$(CONFIG)"; \
+		echo "Created config: $(CONFIG)"; \
+	fi
+	@if [ "$$(id -u)" = 0 ] && [ -n "$(SUDO_USER)" ]; then \
+		chown "$(SUDO_USER)" "$(CONFIG)" "$(dir $(CONFIG))" 2>/dev/null || true; \
+	fi
+
+# Remove the user config.
+uninstall-config:
+	@rm -f "$(CONFIG)"
+	@echo "Removed config: $(CONFIG)"
+
 # System-wide install. Needs write access to $(BINDIR), so run with sudo:
 #   sudo make install
-install:
+install: install-config
 	install -d "$(BINDIR)"
 	install -m 0755 $(BINS) "$(BINDIR)"
 	@echo "Installed $(BINS) to $(BINDIR)"
 
 # Remove the system-wide install (run with sudo, mirrors `install`).
-uninstall:
+uninstall: uninstall-config
 	for b in $(BINS); do rm -f "$(BINDIR)/$$b"; done
 	@echo "Removed $(BINS) from $(BINDIR)"
 
 # Per-user install into ~/.local/bin, ensuring it is on PATH.
-user-install:
+user-install: install-config
 	install -d "$(USER_BINDIR)"
 	install -m 0755 $(BINS) "$(USER_BINDIR)"
 	@echo "Installed $(BINS) to $(USER_BINDIR)"
@@ -79,7 +110,7 @@ user-install:
 
 # Remove the per-user install and the PATH line we added (matched by our
 # marker comment, so a hand-written entry of yours is left untouched).
-user-uninstall:
+user-uninstall: uninstall-config
 	for b in $(BINS); do rm -f "$(USER_BINDIR)/$$b"; done
 	@echo "Removed $(BINS) from $(USER_BINDIR)"
 	@for rc in "$(HOME)/.zshrc" "$(HOME)/.bashrc" "$(HOME)/.profile"; do \

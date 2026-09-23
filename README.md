@@ -38,8 +38,12 @@ claude -R ../reference-repo    # extra read-only mount at /mnt/ro/reference-repo
 - Mounts your project (cwd), `~/.claude` and `~/.claude.json` into the container.
 - `-R/--ro-mount DIR` (repeatable) exposes a host dir read-only at
   `/mnt/ro/<basename>`.
-- Always-on documentation mounts can be added to the `doc_mounts` list at the
-  top of the `claude` script.
+- All user settings live in a single sourced config file,
+  `~/.config/claude-docker.conf` (override with `CLAUDE_DOCKER_CONFIG`).
+  `make install` / `make user-install` create it from
+  [`config.example`](config.example) if absent (never overwriting an existing
+  one), and the uninstall targets remove it. Set the image, always-on
+  documentation mounts (`doc_mounts`), and extra `docker run` args there.
 - Refuses to run from system directories (`/`, `/etc`, `/usr`, …).
 
 ## Headless login

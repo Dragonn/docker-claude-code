@@ -1,6 +1,28 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# --- user configuration --------------------------------------------------
+# All user settings live in a single file that is sourced as bash. Copy
+# config.example to the path below and edit it. Override the location with
+# CLAUDE_DOCKER_CONFIG.
+#
+# Settings you can override (defaults shown here):
+#   IMAGE="my-claude-code"                    # image that `make build` produces
+#   doc_mounts=(                              # always-on read-only mounts,
+#     "${HOME}/git/my-docs:/docs/my-docs"     #   as "host:container" pairs
+#   )
+#   extra_docker_args=( --network host )      # appended verbatim to `docker run`
+IMAGE="my-claude-code"
+doc_mounts=()
+extra_docker_args=()
+
+CLAUDE_DOCKER_CONFIG="${CLAUDE_DOCKER_CONFIG:-${XDG_CONFIG_HOME:-${HOME}/.config}/claude-docker.conf}"
+if [[ -f "${CLAUDE_DOCKER_CONFIG}" ]]; then
+  # shellcheck source=/dev/null
+  source "${CLAUDE_DOCKER_CONFIG}"
+fi
+# -------------------------------------------------------------------------
+
 host_path="$(realpath "$(pwd)")"
 
 # Parse our own flags (--ro-mount / -R DIR, repeatable) and pass the rest to claude.
@@ -42,14 +64,9 @@ case "${host_path}" in
     ;;
 esac
 
-# Documentation mounts (read-only). Add "host:container" pairs here to always
-# expose reference material inside the container, e.g.:
-#   "${HOME}/git/my-docs:/docs/my-docs"
-# (For one-off mounts use -R/--ro-mount on the command line instead.)
-doc_mounts=()
-
+# Always-on documentation mounts (read-only) from the config file's doc_mounts.
 doc_args=()
-for pair in "${doc_mounts[@]}"; do
+for pair in ${doc_mounts[@]+"${doc_mounts[@]}"}; do
   src="${pair%%:*}"
   if [[ -d "${src}" ]]; then
     doc_args+=(-v "${pair}:ro")
@@ -60,7 +77,7 @@ done
 
 # Extra read-only mounts requested on the command line via -R/--ro-mount.
 # Each host directory is exposed at /mnt/ro/<basename> inside the container.
-for src in "${ro_mounts[@]}"; do
+for src in ${ro_mounts[@]+"${ro_mounts[@]}"}; do
   abs="$(realpath "${src}")"
   if [[ -d "${abs}" ]]; then
     doc_args+=(-v "${abs}:/mnt/ro/$(basename "${abs}"):ro")
@@ -77,7 +94,8 @@ exec docker run \
   -v "${HOME}/.claude.json:${HOME}/.claude.json" \
   -v "${HOME}/.claude.json.backup:${HOME}/.claude.json.backup" \
   -v "${host_path}:${host_path}" \
-  "${doc_args[@]}" \
+  ${doc_args[@]+"${doc_args[@]}"} \
+  ${extra_docker_args[@]+"${extra_docker_args[@]}"} \
   -w "${host_path}" \
   -e HOME="${HOME}" \
-  my-claude-code ${claude_args[@]+"${claude_args[@]}"}
+  "${IMAGE}" ${claude_args[@]+"${claude_args[@]}"}

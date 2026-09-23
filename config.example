@@ -1,0 +1,27 @@
+# Configuration for the `claude` launcher.
+#
+# `make install` / `make user-install` copy this to:
+#   ~/.config/claude-docker.conf
+# (existing configs are never overwritten). You can also copy it by hand, or
+# set CLAUDE_DOCKER_CONFIG to point elsewhere.
+#
+# It is sourced as bash by the `claude` script, so it is plain shell: set
+# variables, use ${HOME}, comment with '#'. All user settings go here.
+
+# Docker image to run (what `make build` produces).
+#IMAGE="my-claude-code"
+
+# Always-on documentation mounts (read-only), as "host:container" pairs.
+# Missing host directories are skipped with a warning.
+# For one-off mounts, use -R/--ro-mount on the command line instead.
+#doc_mounts=(
+#  "${HOME}/git/team-docs:/docs/team-docs"
+#  "${HOME}/git/kube/doc:/docs/kube"
+#)
+
+# Extra arguments appended verbatim to `docker run` (advanced escape hatch),
+# e.g. add host networking or pass an environment variable through:
+#extra_docker_args=(
+#  --network host
+#  -e SOME_VAR="${SOME_VAR:-}"
+#)
