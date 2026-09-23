@@ -44,6 +44,7 @@ claude -R ../reference-repo    # extra read-only mount at /mnt/ro/reference-repo
   [`config.example`](config.example) if absent (never overwriting an existing
   one), and the uninstall targets remove it. Set the image, always-on
   documentation mounts (`doc_mounts`), and extra `docker run` args there.
+  Run `make config` to open it in your editor (`$VISUAL`/`$EDITOR`).
 - Refuses to run from system directories (`/`, `/etc`, `/usr`, …).
 
 ## Headless login

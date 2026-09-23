@@ -6,6 +6,7 @@
 #   make USER_ID=1001 build    # bake a specific uid (defaults to your own)
 #   sudo make install          # copy host scripts to /usr/local/bin
 #   make user-install          # copy host scripts to ~/.local/bin (+ PATH)
+#   make config                # open the user config in $EDITOR
 #
 # install / user-install also create ~/.config/claude-docker.conf from
 # config.example if it does not exist; uninstall / user-uninstall remove it.
@@ -34,7 +35,7 @@ TAGS := -t $(IMAGE):$(VERSION) -t $(IMAGE):latest
 
 .DEFAULT_GOAL := build
 .PHONY: build rebuild clean install uninstall user-install user-uninstall \
-        install-config uninstall-config
+        install-config uninstall-config config
 
 build:
 	docker build \
@@ -72,6 +73,13 @@ install-config:
 uninstall-config:
 	@rm -f "$(CONFIG)"
 	@echo "Removed config: $(CONFIG)"
+
+# Open the user config in your editor ($VISUAL/$EDITOR, default vi),
+# creating it from the template first if it does not exist.
+config: install-config
+	@editor="$${VISUAL:-$${EDITOR:-vi}}"; \
+	echo "Opening $(CONFIG) with $$editor"; \
+	exec $$editor "$(CONFIG)"
 
 # System-wide install. Needs write access to $(BINDIR), so run with sudo:
 #   sudo make install
