@@ -38,8 +38,15 @@ RUN apt-get update && \
     git config --system pager.log delta && \
     git config --system pager.show delta
 
+# Browser stand-in: capture OAuth URLs to a file instead of opening a browser.
+COPY dgx-open /usr/local/bin/dgx-open
+RUN chmod 0755 /usr/local/bin/dgx-open && \
+    ln -sf /usr/local/bin/dgx-open /usr/local/bin/xdg-open
+
 USER claude
 ENV DISABLE_AUTOUPDATER=1
 ENV COLORTERM=truecolor
+# Make Claude Code call our capture script instead of trying to open a browser.
+ENV BROWSER=dgx-open
 WORKDIR /mnt/claude
 ENTRYPOINT ["/usr/local/bin/claude"]

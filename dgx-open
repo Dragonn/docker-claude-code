@@ -1,0 +1,56 @@
+#!/usr/bin/env sh
+# dgx-open — browser stand-in for Claude Code running INSIDE the container.
+#
+# Claude Code opens OAuth URLs via $BROWSER (and falls back to `xdg-open`).
+# There's no browser in here, so we instead:
+#   * detect this container's ID, and
+#   * write both the ID and the URL to files on a bind-mounted dir (~/.claude),
+# so the host-side `claude-login-watcher` can pick them up, open the URL in a real
+# browser, catch the OAuth callback, and feed it back in via `docker exec`.
+#
+# Files written (under the dir of CLAUDE_DGX_URL_FILE, default ~/.claude):
+#   oauth-url.txt          - timestamped history (ts <tab> cid <tab> url)
+#   oauth-container-id     - this container's id (written BEFORE the url file)
+#   oauth-url-latest.txt   - just the latest url (the file the watcher watches)
+
+set -eu
+
+URL_FILE="${CLAUDE_DGX_URL_FILE:-$HOME/.claude/oauth-url.txt}"
+DIR="$(dirname "$URL_FILE")"
+LATEST="${URL_FILE%.txt}-latest.txt"
+CID_FILE="$DIR/oauth-container-id"
+
+# --- the URL: first http(s) argument (callers may pass flags first) ----------
+url=""
+for arg in "$@"; do
+  case "$arg" in http://*|https://*) url="$arg"; break ;; esac
+done
+[ -n "$url" ] || url="${*:-}"
+
+# --- container id: explicit override > docker's hostname bind-mount > hostname
+# /proc/self/mountinfo holds .../containers/<64-hex-id>/hostname, which is the
+# real container id even when --hostname was customised.
+cid="${CLAUDE_DGX_CONTAINER:-}"
+if [ -z "$cid" ] && [ -r /proc/self/mountinfo ]; then
+  cid="$(grep -oE '/containers/[0-9a-f]{64}/' /proc/self/mountinfo 2>/dev/null \
+         | head -n1 | grep -oE '[0-9a-f]{64}' || true)"
+fi
+[ -n "$cid" ] || cid="$(cat /etc/hostname 2>/dev/null || true)"
+
+mkdir -p "$DIR"
+
+# history (append)
+printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$cid" "$url" >> "$URL_FILE"
+
+# container id FIRST (atomic) so it's present when the watcher sees the url file
+tmp="$DIR/.oauth-container-id.$$"
+printf '%s\n' "$cid" > "$tmp" && mv -f "$tmp" "$CID_FILE"
+
+# url LAST (atomic) — this write is what the host watcher triggers on
+tmp="$DIR/.oauth-url-latest.$$"
+printf '%s\n' "$url" > "$tmp" && mv -f "$tmp" "$LATEST"
+
+printf '\n\033[1;33m[dgx-open]\033[0m Login URL captured (container %s).\n' "${cid%${cid#????????????}}" 1>&2
+printf '[dgx-open] Waiting for host-side claude-login-watcher to open the browser...\n\n' 1>&2
+
+exit 0

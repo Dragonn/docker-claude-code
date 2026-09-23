@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""
+claude-login-watcher — run this ON THE HOST to complete Claude Code logins for
+containers, with NO published ports (so any number of containers can run).
+
+What it does, in a loop:
+  1. Watches  <watch-dir>/oauth-url-latest.txt  for changes. `dgx-open`
+     (inside the container) writes that file plus oauth-container-id when
+     Claude Code wants to open a browser.
+  2. On change: opens the captured auth URL in a real browser on this host,
+     and starts a one-shot HTTP listener on 127.0.0.1:<port> (the port comes
+     from the URL's redirect_uri; defaults to 3118).
+  3. When the browser is redirected to .../callback?code=...&state=..., it
+     captures that and delivers it to Claude's server INSIDE the container via
+     `docker exec <id> node ...` — i.e. over the container's own loopback, so
+     nothing needs to be published with `-p`.
+
+Usage:
+    claude-login-watcher [WATCH_DIR]
+
+WATCH_DIR is the HOST path that is bind-mounted into the container's ~/.claude
+(e.g. if you run `-v /srv/claude-cfg:/home/claude/.claude`, pass /srv/claude-cfg).
+Defaults to ~/.claude.
+
+Start the watcher BEFORE you run /login in the container.
+"""
+import os
+import sys
+import time
+import subprocess
+import urllib.parse
+import webbrowser
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+WATCH_DIR = os.path.abspath(os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else "~/.claude"))
+URL_FILE = os.path.join(WATCH_DIR, "oauth-url-latest.txt")
+CID_FILE = os.path.join(WATCH_DIR, "oauth-container-id")
+
+# node one-liner that does GET <url> from inside the container (node is always
+# present in the node base image, so we don't depend on curl/wget).
+DELIVER_JS = (
+    'const http=require("http");'
+    'http.get(process.argv[1],r=>{let d="";r.on("data",c=>d+=c);'
+    'r.on("end",()=>{console.log("HTTP "+r.statusCode);'
+    'process.exit(r.statusCode<400?0:1)})})'
+    '.on("error",e=>{console.error(e.message);process.exit(1)});'
+)
+
+
+def log(*a):
+    print("[claude-login-watcher]", *a, flush=True)
+
+
+def read(path):
+    try:
+        with open(path) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def callback_port(auth_url):
+    """Pull the port out of the auth URL's redirect_uri (default 3118)."""
+    try:
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(auth_url).query)
+        ru = q.get("redirect_uri", [""])[0]
+        return urllib.parse.urlparse(ru).port or 3118
+    except Exception:
+        return 3118
+
+
+def handle_login(auth_url, container):
+    port = callback_port(auth_url)
+    short = container[:12] if container else "<unknown>"
+    log(f"login for container {short}, callback port {port}")
+
+    captured = {}
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_GET(self):
+            parsed = urllib.parse.urlparse(self.path)
+            if not parsed.path.endswith("/callback"):
+                self.send_response(404)
+                self.end_headers()
+                return
+            captured["query"] = parsed.query
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(
+                b"<!doctype html><h2>Login received.</h2>"
+                b"<p>You can close this tab and return to your terminal.</p>"
+            )
+
+    try:
+        httpd = HTTPServer(("127.0.0.1", port), Handler)
+    except OSError as e:
+        log(f"cannot bind 127.0.0.1:{port} ({e}). Another login in progress?")
+        return
+
+    log("opening browser...")
+    if not webbrowser.open(auth_url):
+        subprocess.run(["xdg-open", auth_url], check=False)
+
+    log(f"listening on 127.0.0.1:{port} for the OAuth callback (5 min timeout)...")
+    httpd.timeout = 5
+    deadline = time.time() + 300
+    while "query" not in captured and time.time() < deadline:
+        httpd.handle_request()
+    httpd.server_close()
+
+    if "query" not in captured:
+        log("timed out waiting for the callback.")
+        return
+
+    if not container:
+        log("no container id captured; cannot deliver. Re-run /login.")
+        return
+
+    target = f"http://localhost:{port}/callback?{captured['query']}"
+    log(f"delivering callback into container {short}...")
+    res = subprocess.run(
+        ["docker", "exec", container, "node", "-e", DELIVER_JS, target],
+        capture_output=True, text=True,
+    )
+    out = (res.stdout + res.stderr).strip()
+    if res.returncode == 0:
+        log(f"delivered ({out}). Login should be complete in the container.")
+    else:
+        log(f"delivery failed ({out or 'exit ' + str(res.returncode)}).")
+
+
+def main():
+    log(f"watching {URL_FILE}")
+    log("(start me before running /login in the container)")
+    # Record current state so we don't fire on a stale, pre-existing file.
+    try:
+        last = os.stat(URL_FILE).st_mtime
+    except OSError:
+        last = None
+    while True:
+        try:
+            mtime = os.stat(URL_FILE).st_mtime
+        except OSError:
+            mtime = None
+        if mtime is not None and mtime != last:
+            last = mtime
+            url = read(URL_FILE)
+            cid = read(CID_FILE)
+            if url:
+                try:
+                    handle_login(url, cid)
+                except Exception as e:  # never let one login kill the watcher
+                    log("error:", e)
+                log(f"watching {URL_FILE}")
+        time.sleep(1)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        log("bye")
