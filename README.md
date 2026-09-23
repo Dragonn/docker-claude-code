@@ -1,72 +1,81 @@
 # Claude Code in Docker
 
-Run [Claude Code](https://www.claude.com/product/claude-code) in a Docker container. No Node.js installation required. Uses [`peterkuczera/claude-code`](https://hub.docker.com/r/peterkuczera/claude-code) on Docker Hub, automatically updated with new Claude Code releases.
+Run [Claude Code](https://www.claude.com/product/claude-code) in a locally-built
+Docker container. No Node.js on the host. The image bundles a handful of
+everyday CLI tools, supports **headless OAuth login** (no browser, no published
+ports), read-only reference mounts, and an optional set of local **MCP servers**.
+
+## Install
+
+Build the image and install the host scripts:
 
 ```bash
-claude --help
+git clone https://github.com/Dragonn/docker-claude-code
+cd docker-claude-code
+make build            # build my-claude-code:latest
+make user-install     # install scripts to ~/.local/bin (+ PATH)
+# or: sudo make install   # system-wide to /usr/local/bin
 ```
 
-That's it. No `npm install -g`, no Node.js version conflicts.
+`make build` accepts `VERSION=` to pin a claude-code release and `USER_ID=` to
+bake a uid (defaults to your own, so bind-mounted files stay correctly owned).
 
-## Installation
-
-Run this one-liner:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/peterkuczera/docker-claude-code/refs/heads/main/install.sh | bash
-```
-
-Then run Claude Code from any project directory:
+Then run from any project directory:
 
 ```bash
 cd ~/my-project
 claude
 ```
 
-[View install script](https://raw.githubusercontent.com/peterkuczera/docker-claude-code/refs/heads/main/install.sh)
-
-## How It Works
-
-The `claude` script runs a Docker container with:
-- Your config files (`~/.claude`, `~/.claude.json`) mounted so API keys and settings persist
-- Your current directory mounted so Claude Code can access your project files
-- Your user ID so files created have correct ownership
-
-The latest image is automatically pulled, so you always get the newest Claude Code version.
-
-## Examples
+## Usage
 
 ```bash
-claude                    # Interactive mode
-claude --help             # Show help
-claude --version          # Show version
-claude "fix the bug"      # Run a prompt directly
+claude                         # interactive
+claude "fix the bug"           # run a prompt
+claude -R ../reference-repo    # extra read-only mount at /mnt/ro/reference-repo
 ```
 
-## Troubleshooting
+- Mounts your project (cwd), `~/.claude` and `~/.claude.json` into the container.
+- `-R/--ro-mount DIR` (repeatable) exposes a host dir read-only at
+  `/mnt/ro/<basename>`.
+- Always-on documentation mounts can be added to the `doc_mounts` list at the
+  top of the `claude` script.
+- Refuses to run from system directories (`/`, `/etc`, `/usr`, …).
 
-**Running from system directories blocked**
+## Headless login
 
-The script blocks mounting `/`, `/etc`, `/usr`, etc. Run from a user directory instead.
-
-## Building Locally
-
-For contributors or those wanting to customize the image:
+Log in from a container with no browser and no published ports (any number of
+containers can log in at once). On the host, start the watcher **before** you run
+`/login`:
 
 ```bash
-git clone https://github.com/peterkuczera/docker-claude-code.git
-cd docker-claude-code
-./bin/build
+claude-login-watcher            # watches ~/.claude by default
 ```
 
-Then install the wrapper to use your local build:
+Inside the container, `/login` hands the OAuth URL to `dgx-open` (the container's
+`$BROWSER`), which writes it to a bind-mounted file. The watcher opens it in a
+real browser, catches the callback, and delivers the code back into the container
+via `docker exec`.
+
+## Bundled tools
+
+The image includes: `git` (+ delta), `vim`, `sudo`, `curl`, `wget`, `jq`, `yq`,
+`ripgrep`, `less`, `kubectl`, `pup`, `python3`, and `libxml2-utils`.
+
+## MCP servers
+
+`mcp/` has a small `make`-based manager for running MCP servers in Docker and
+registering them with Claude Code. `context7` and `playwright` work out of the
+box; `prometheus`, `elasticsearch` and `grafana` are included as URL/token-gated
+templates. See [mcp/README.md](mcp/README.md).
+
+## Uninstall
 
 ```bash
-DOCKER_IMAGE=claude-code:latest ./install.sh
+make user-uninstall     # or: sudo make uninstall
+make clean              # remove the local image
 ```
-
-See [CLAUDE.md](CLAUDE.md) for development details and architecture.
 
 ## License
 
-docker-claude-code is released under the [MIT License](https://opensource.org/license/mit).
+Released under the [MIT License](https://opensource.org/license/mit).
