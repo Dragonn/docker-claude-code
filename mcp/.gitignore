@@ -1,0 +1,5 @@
+# Local secrets / tokens — never commit
+*-token.txt
+
+# Generated MCP client config (may embed tokens)
+.mcp.json
