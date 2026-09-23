@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+host_path="$(realpath "$(pwd)")"
+
+# Parse our own flags (--ro-mount / -R DIR, repeatable) and pass the rest to claude.
+# Each DIR is mounted read-only under /mnt/ro/<basename> inside the container.
+ro_mounts=()
+claude_args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -R|--ro-mount)
+      if [[ $# -lt 2 ]]; then
+        echo "Error: $1 requires a directory argument" >&2
+        exit 1
+      fi
+      ro_mounts+=("$2")
+      shift 2
+      ;;
+    --ro-mount=*)
+      ro_mounts+=("${1#*=}")
+      shift
+      ;;
+    --)
+      shift
+      claude_args+=("$@")
+      break
+      ;;
+    *)
+      claude_args+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# Prevent mounting system directories
+case "${host_path}" in
+  /|/bin|/sbin|/usr|/usr/*|/etc|/etc/*|/lib|/lib/*|/lib64|/lib64/*|/sys|/sys/*|/proc|/proc/*|/dev|/dev/*|/boot|/boot/*|/root|/root/*)
+    echo "Error: Cannot run from system directory: ${host_path}" >&2
+    echo "Run from a user directory like /home, /mnt, or /tmp" >&2
+    exit 1
+    ;;
+esac
+
+# Documentation mounts (read-only). Add "host:container" pairs here to always
+# expose reference material inside the container, e.g.:
+#   "${HOME}/git/my-docs:/docs/my-docs"
+# (For one-off mounts use -R/--ro-mount on the command line instead.)
+doc_mounts=()
+
+doc_args=()
+for pair in "${doc_mounts[@]}"; do
+  src="${pair%%:*}"
+  if [[ -d "${src}" ]]; then
+    doc_args+=(-v "${pair}:ro")
+  else
+    echo "Warning: documentation source not found, skipping: ${src}" >&2
+  fi
+done
+
+# Extra read-only mounts requested on the command line via -R/--ro-mount.
+# Each host directory is exposed at /mnt/ro/<basename> inside the container.
+for src in "${ro_mounts[@]}"; do
+  abs="$(realpath "${src}")"
+  if [[ -d "${abs}" ]]; then
+    doc_args+=(-v "${abs}:/mnt/ro/$(basename "${abs}"):ro")
+  else
+    echo "Warning: read-only mount source not found, skipping: ${src}" >&2
+  fi
+done
+
+exec docker run \
+  --rm \
+  -it \
+  --user "$(id -u):$(id -g)" \
+  -v "${HOME}/.claude:${HOME}/.claude" \
+  -v "${HOME}/.claude.json:${HOME}/.claude.json" \
+  -v "${HOME}/.claude.json.backup:${HOME}/.claude.json.backup" \
+  -v "${host_path}:${host_path}" \
+  "${doc_args[@]}" \
+  -w "${host_path}" \
+  -e HOME="${HOME}" \
+  my-claude-code ${claude_args[@]+"${claude_args[@]}"}
